@@ -51,8 +51,6 @@ class Train:
 
         print "Initialized train. Truth state: %s" % self.x
 
-
-
     def update(self, u):
         self.x = updateKinematics(self.x, u)
         print "Train moved. New truth state: %s" % self.x
@@ -73,7 +71,8 @@ class Sensor:
             measured_val = np.random.normal(truth_val, np.sqrt(R[i, i]))
             measured_state.append(measured_val)
 
-        #Convert to "volts" using inverse H matrix
+        #Convert to "volts" or some other unit of measurement using inverse H
+        #matrix to make H actually do something interesting
         measurement = np.dot(la.inv(H), measured_state)
 
         return measurement
@@ -140,6 +139,7 @@ class BeliefPlotter:
         self.fig = plt.figure()
         self.axes = []
 
+        #TODO: cleanup and make general
         axis = self.fig.add_subplot(411)
         self.axes.append(axis)
         axis = self.fig.add_subplot(412)
@@ -154,11 +154,9 @@ class BeliefPlotter:
     def _initAxisLimits(self):
         axis = self.axes[0]
         axis.set_xlim([-2, 12])
-        # axis.set_ylim([0, 1])
 
         axis = self.axes[1]
         axis.set_xlim([-1, 1])
-        # axis.set_ylim([0, 1])
 
     def clearPlots(self):
         for axis in self.axes:
@@ -207,10 +205,11 @@ class BeliefPlotter:
 
     #TODO: cleanup
     def plotTimeSeries(self):
-        for i in range(2, 4):
-            axis = self.axes[i]
-            y_truth_data = self.train.history[i - 2]
-            y_est_data = self.kalman_filter.history[i - 2]
+        for i in range(len(STATE_VARS)):
+            axis_index = i + len(STATE_VARS)
+            axis = self.axes[axis_index]
+            y_truth_data = self.train.history[i]
+            y_est_data = self.kalman_filter.history[i]
             x_data = range(0, len(y_truth_data))
             axis.plot(x_data, y_truth_data, "y*-")
             axis.plot(x_data, y_est_data, "bo-")
