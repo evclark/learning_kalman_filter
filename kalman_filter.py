@@ -1,4 +1,5 @@
 import numpy as np
+import random
 import numpy.linalg as la
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
@@ -15,8 +16,8 @@ dT = 1.0
 F = np.array([[1.0, dT ],
               [0.0, 1.0]])
 B = np.array(np.transpose([np.power(dT, 2) / 2.0, dT]))
-Q = np.array([[0.01, 0   ],
-              [0,    0.01]])
+Q = np.array([[0.001, 0   ],
+              [0,    0.001]])
 # Q = np.zeros([2, 2])
 
 #########
@@ -25,8 +26,8 @@ Q = np.array([[0.01, 0   ],
 # H = np.array([[5.6, 0  ],
 #               [0,   3.5]])
 H = np.identity(2)
-R = np.array([[0.5, 0   ],
-              [0,   0.005]])
+R = np.array([[0.05, 0   ],
+              [0,   0.0005]])
 # R = np.zeros([2, 2])
 
 #########
@@ -46,19 +47,17 @@ class Train:
         self.x = updateKinematics(self.x, u)
         print "Train moved. New truth state: %s" % self.x
 
-
 class Sensor:
 
     def __init__(self, train):
         self.train = train
 
     def getMeasurement(self):
-        #Get "measured" position and velocity (add gaussian noise)
-        truth_pos = self.train.x[STATE_INDEX["pos"]]
-        measured_pos = np.random.normal(truth_pos, np.sqrt(R[0, 0]))
-        truth_vel = self.train.x[STATE_INDEX["vel"]]
-        measured_vel = np.random.normal(truth_vel, np.sqrt(R[1, 1]))
-        measured_state = [measured_pos, measured_vel]
+        measured_state = []
+        for i in range(len(STATE_VARS)):
+            truth_val = self.train.x[i]
+            measured_val = np.random.normal(truth_val, np.sqrt(R[i, i]))
+            measured_state.append(measured_val)
 
         #Convert to "volts" using inverse H matrix
         measurement = np.dot(la.inv(H), measured_state)
@@ -145,7 +144,7 @@ class BeliefPlotter:
 
         self.fig.canvas.draw()
 
-    def plotBelief(self):
+    def plotBelief(self, color="blue"):
         for i in range(len(STATE_INDEX)):
             truth_value = self.train.x[i]
             est_value = self.kalman_filter.x[i]
@@ -154,9 +153,9 @@ class BeliefPlotter:
             axis = self.axes[i]
 
             axis.plot([truth_value], [0], "y*", markersize=15)
-            axis.plot([est_value], [0], "bo")
+            axis.plot([est_value], [0], marker="o", color=color)
             est_uncertainty = mlab.normpdf(self.x_plot_range, est_value, sigma)
-            axis.plot(self.x_plot_range, est_uncertainty, "b-")
+            axis.plot(self.x_plot_range, est_uncertainty, color=color)
 
             axis.set_title(STATE_VARS[i])
 
@@ -171,23 +170,28 @@ class BeliefPlotter:
             meas_y_data = mlab.normpdf(self.x_plot_range, meas_val, meas_sigma)
             axis.plot(self.x_plot_range, meas_y_data, "g-")
 
-            est_value = self.kalman_filter.x[i]
-            est_sigma = np.sqrt(self.kalman_filter.P[i, i])
-            est_y_data = mlab.normpdf(self.x_plot_range, est_value, est_sigma)
+            #Plot update if both gaussians were taken into account equally
+            # est_value = self.kalman_filter.x[i]
+            # est_sigma = np.sqrt(self.kalman_filter.P[i, i])
+            # est_y_data = mlab.normpdf(self.x_plot_range, est_value, est_sigma)
+            # update_y_data = np.multiply(meas_y_data, est_y_data)
+            # axis.plot(self.x_plot_range, update_y_data, "r-")
+            # correct_update_val = self.x_plot_range[np.argmax(update_y_data)]
+            # axis.axvline(correct_update_val, color="red", linestyle=":")
 
-            update_y_data = np.multiply(meas_y_data, est_y_data)
-            axis.plot(self.x_plot_range, update_y_data, "r-")
-            correct_update_val = self.x_plot_range[np.argmax(update_y_data)]
-            axis.axvline(correct_update_val, color="red", linestyle=":")
+        self.fig.canvas.draw()
 
+    def displayMessage(self, message):
+        axis = self.axes[1]
+        axis.set_title(message, color="red")
         self.fig.canvas.draw()
 
 
 def main():
-    init_truth_state = [0.0, .1]
+    init_truth_state = [0.25, .2]
     train = Train(init_truth_state)
 
-    init_estimate = [0.0, .1]
+    init_estimate = [0.0, 0.0]
     init_covariance = np.identity(2) * 0.01
     kalman_filter = KalmanFilter(init_estimate, init_covariance)
 
@@ -220,6 +224,7 @@ def main():
         plotter.plotBelief()
         raw_input()
 
+        #Give the kalman filter a measurement update every so often
         if i % 5 == 0:
             #Get sensor measurement
             z = sensor.getMeasurement()
@@ -230,10 +235,21 @@ def main():
             #Update the kalman filter with the measurement
             kalman_filter.update(z)
             #Plot again to watch the update happen
-            plotter.plotBelief()
+            plotter.plotBelief(color="magenta")
+            raw_input()
+
+        #Give the train a jolt
+        if i == 20:
+            vel_index = STATE_INDEX["vel"]
+            delta_vel =  -0.2
+            train.x[vel_index] += delta_vel
+            message = "Applied jolt of %s m/s!" % delta_vel
+            print message
+            plotter.displayMessage(message)
             raw_input()
 
         plotter.clearPlots()
+        time.sleep(0.1)
 
 
 if __name__ == "__main__":
