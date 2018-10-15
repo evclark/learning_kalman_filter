@@ -145,21 +145,24 @@ class BeliefPlotter:
             est_value = self.kalman_filter.x.getVal(var_name)
             #Get position uncertainty
             cov_index = self.kalman_filter.getCovarianceIndex(var_name)
-            est_variance = self.kalman_filter.P[cov_index, cov_index]
+            sigma = np.sqrt(self.kalman_filter.P[cov_index, cov_index])
 
             x = np.arange(-15, 15, 0.001)
-            y = mlab.normpdf(x, est_value, est_variance)
+            y = mlab.normpdf(x, est_value, sigma)
 
             meas_val = z.getVal(var_name)
-            meas_cov = R[cov_index, cov_index]
-            y2 = mlab.normpdf(x, meas_val, meas_cov)
+            sigma = np.sqrt(R[cov_index, cov_index])
+            y2 = mlab.normpdf(x, meas_val, sigma)
             measurement_plot.set_xdata(x)
             measurement_plot.set_ydata(y2)
 
             y3 = np.multiply(y, y2)
-            # y3 /= np.max(y3)
             update_plot.set_xdata(x)
             update_plot.set_ydata(y3)
+
+            correc_update_val = x[np.argmax(y3)]
+            self.plots[var_name].axis.axvline(correc_update_val,
+                                                     color="red", linestyle=":")
 
         self.fig.canvas.draw()
 
@@ -182,9 +185,9 @@ class BeliefPlotter:
         est_value = self.kalman_filter.x.getVal(var_name)
         #Get position uncertainty
         cov_index = self.kalman_filter.getCovarianceIndex(var_name)
-        est_variance = self.kalman_filter.P[cov_index, cov_index]
+        sigma = np.sqrt(self.kalman_filter.P[cov_index, cov_index])
 
-        print "%s variance: %s" % (var_name, est_variance)
+        print "%s variance: %s" % (var_name, sigma)
 
         #Get plot Line objects for this state variable
         truth_plot = self.plots[var_name].truth
@@ -195,7 +198,7 @@ class BeliefPlotter:
         truth_plot.set_xdata([truth_value])
         est_plot.set_xdata([est_value])
         x = np.arange(-15, 15, 0.001)
-        y = mlab.normpdf(x, est_value, est_variance)
+        y = mlab.normpdf(x, est_value, sigma)
         uncertainty_plot.set_xdata(x)
         uncertainty_plot.set_ydata(y)
 
@@ -221,13 +224,8 @@ def main():
         else:
             u = -0.01
 
-        #Plot latest state
-        plotter.plotBelief()
-        raw_input()
-
         #Update train state and kalman filter estimate
         train.update(u)
-        #Give the kalman filter a measurement of the train every 100 iterations
         if i % 5 == 0:
             z = sensor.getMeasurement()
             plotter.plotMeasurement(z)
@@ -237,7 +235,9 @@ def main():
             plotter.clearMeasurement()
             kalman_filter.predict(u)
 
-        # Control animation speed
+        #Plot latest state
+        plotter.plotBelief()
+        raw_input()
 
 
 
