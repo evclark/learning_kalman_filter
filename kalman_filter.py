@@ -9,6 +9,12 @@ from collections import namedtuple
 
 import pdb
 
+'''
+Questions:
+    - How to tune process, measurement noise
+    - Kalman gain? Weights predict and update equally?
+'''
+
 #########
 #Update step constants
 ########
@@ -26,7 +32,7 @@ Q = np.array([[0.001, 0   ],
 # H = np.array([[5.6, 0  ],
 #               [0,   3.5]])
 H = np.identity(2)
-R = np.array([[0.05, 0   ],
+R = np.array([[0.005, 0   ],
               [0,   0.0005]])
 # R = np.zeros([2, 2])
 
@@ -41,11 +47,19 @@ STATE_INDEX = dict(zip(STATE_VARS, range(len(STATE_VARS))))
 class Train:
     def __init__(self, x):
         self.x = x
-        print "Truth state: %s" % self.x
+        self.history = [[] for i in range(len(STATE_VARS))]
+
+        print "Initialized train. Truth state: %s" % self.x
+
+
 
     def update(self, u):
         self.x = updateKinematics(self.x, u)
         print "Train moved. New truth state: %s" % self.x
+
+    def updateHistory(self, timestamp):
+        for i in range(len(STATE_VARS)):
+            self.history[i].append(self.x[i])
 
 class Sensor:
 
@@ -74,6 +88,12 @@ class KalmanFilter:
 
         self.x = np.array(x)
         self.P = np.array(P)
+
+        self.history = [[] for i in range(len(STATE_VARS))]
+
+    def updateHistory(self, timestamp):
+        for i in range(len(STATE_VARS)):
+            self.history[i].append(self.x[i])
 
     def predict(self, u):
         print "\nRunning predict"
@@ -120,9 +140,13 @@ class BeliefPlotter:
         self.fig = plt.figure()
         self.axes = []
 
-        axis = self.fig.add_subplot(211)
+        axis = self.fig.add_subplot(411)
         self.axes.append(axis)
-        axis = self.fig.add_subplot(212)
+        axis = self.fig.add_subplot(412)
+        self.axes.append(axis)
+        axis = self.fig.add_subplot(413)
+        self.axes.append(axis)
+        axis = self.fig.add_subplot(414)
         self.axes.append(axis)
 
         self._initAxisLimits()
@@ -145,7 +169,7 @@ class BeliefPlotter:
         self.fig.canvas.draw()
 
     def plotBelief(self, color="blue"):
-        for i in range(len(STATE_INDEX)):
+        for i in range(len(STATE_VARS)):
             truth_value = self.train.x[i]
             est_value = self.kalman_filter.x[i]
             sigma = np.sqrt(self.kalman_filter.P[i, i])
@@ -162,7 +186,7 @@ class BeliefPlotter:
         self.fig.canvas.draw()
 
     def plotMeasurement(self, z):
-        for i in range(len(STATE_INDEX)):
+        for i in range(len(STATE_VARS)):
             axis = self.axes[i]
 
             meas_val = z[i]
@@ -181,6 +205,18 @@ class BeliefPlotter:
 
         self.fig.canvas.draw()
 
+    #TODO: cleanup
+    def plotTimeSeries(self):
+        for i in range(2, 4):
+            axis = self.axes[i]
+            y_truth_data = self.train.history[i - 2]
+            y_est_data = self.kalman_filter.history[i - 2]
+            x_data = range(0, len(y_truth_data))
+            axis.plot(x_data, y_truth_data, "y*-")
+            axis.plot(x_data, y_est_data, "bo-")
+
+        self.fig.canvas.draw()
+
     def displayMessage(self, message):
         axis = self.axes[1]
         axis.set_title(message, color="red")
@@ -188,7 +224,7 @@ class BeliefPlotter:
 
 
 def main():
-    init_truth_state = [0.25, .2]
+    init_truth_state = [3, .2]
     train = Train(init_truth_state)
 
     init_estimate = [0.0, 0.0]
@@ -217,11 +253,14 @@ def main():
             u = -0.01
 
         #Update train state and kalman filter estimate
+        train.updateHistory(i)
         train.update(u)
+        kalman_filter.updateHistory(i)
         kalman_filter.predict(u)
 
         #Plot latest state
         plotter.plotBelief()
+        plotter.plotTimeSeries()
         raw_input()
 
         #Give the kalman filter a measurement update every so often
@@ -240,8 +279,11 @@ def main():
 
         #Give the train a jolt
         if i == 20:
+            pos_index = STATE_INDEX["pos"]
+            delta_pos = -5
             vel_index = STATE_INDEX["vel"]
             delta_vel =  -0.2
+            train.x[pos_index] += delta_pos
             train.x[vel_index] += delta_vel
             message = "Applied jolt of %s m/s!" % delta_vel
             print message
