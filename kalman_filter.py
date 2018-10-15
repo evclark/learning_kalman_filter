@@ -129,15 +129,55 @@ class BeliefPlotter:
         self.plots["vel"] = StateVarPlot(ax, truth, estimate, uncertainty,
                                                             measurement, update)
 
-    def plotBelief(self, z):
+    def plotBelief(self):
         #Update data in plot Line objects
-        self.plotStateVariable("pos", z)
-        self.plotStateVariable("vel", z)
+        self.plotStateVariable("pos")
+        self.plotStateVariable("vel")
 
         #Redraw the plots with the new data
         self.fig.canvas.draw()
 
-    def plotStateVariable(self, var_name, z):
+
+
+    def plotMeasurement(self, z):
+        for var_name in ["pos", "vel"]:
+            measurement_plot =  self.plots[var_name].measurement
+            update_plot = self.plots[var_name].update
+
+            est_value = self.kalman_filter.x.getVal(var_name)
+            #Get position uncertainty
+            cov_index = self.kalman_filter.getCovarianceIndex(var_name)
+            est_variance = self.kalman_filter.P[cov_index, cov_index]
+
+            x = np.arange(-15, 15, 0.001)
+            y = mlab.normpdf(x, est_value, est_variance)
+
+            meas_val = z.getVal(var_name)
+            meas_cov = R[cov_index, cov_index]
+            y2 = mlab.normpdf(x, meas_val, meas_cov)
+            measurement_plot.set_xdata(x)
+            measurement_plot.set_ydata(y2)
+
+            y3 = np.multiply(y, y2)
+            # y3 /= np.max(y3)
+            update_plot.set_xdata(x)
+            update_plot.set_ydata(y3)
+
+        self.fig.canvas.draw()
+
+    def clearMeasurement(self):
+        for var_name in ["pos", "vel"]:
+            measurement_plot =  self.plots[var_name].measurement
+            update_plot = self.plots[var_name].update
+
+            measurement_plot.set_xdata([0])
+            measurement_plot.set_ydata([0])
+            update_plot.set_xdata([0])
+            update_plot.set_ydata([0])
+
+        self.fig.canvas.draw()
+
+    def plotStateVariable(self, var_name):
         #Get true positions
         truth_value = self.train.x.getVal(var_name)
         #Get estimated position
@@ -152,8 +192,6 @@ class BeliefPlotter:
         truth_plot = self.plots[var_name].truth
         est_plot =  self.plots[var_name].estimate
         uncertainty_plot = self.plots[var_name].uncertainty
-        measurement_plot =  self.plots[var_name].measurement
-        update_plot = self.plots[var_name].update
 
         #Update them with the latest data
         truth_plot.set_xdata([truth_value])
@@ -162,23 +200,7 @@ class BeliefPlotter:
         y = mlab.normpdf(x, est_value, est_variance)
         uncertainty_plot.set_xdata(x)
         uncertainty_plot.set_ydata(y)
-        if z is None:
-            measurement_plot.set_xdata([0])
-            measurement_plot.set_ydata([0])
-            update_plot.set_xdata([0])
-            update_plot.set_ydata([0])
-        else:
-            # pdb.set_trace()
-            meas_val = z.getVal(var_name)
-            meas_cov = R[cov_index, cov_index]
-            y2 = mlab.normpdf(x, meas_val, meas_cov)
-            measurement_plot.set_xdata(x)
-            measurement_plot.set_ydata(y2)
 
-            y3 = np.multiply(y, y2)
-            y3 /= np.max(y3)
-            update_plot.set_xdata(x)
-            update_plot.set_ydata(y3)
 
 
 def main():
@@ -192,7 +214,6 @@ def main():
     plotter = BeliefPlotter(train, kalman_filter)
     sensor = Sensor(train)
 
-    z = None
     u = 0.01
     for i in range(1000):
         if train.x.pos < 2.5:
@@ -203,22 +224,20 @@ def main():
             u = -0.01
 
         #Plot latest state
-        plotter.plotBelief(z)
+        plotter.plotBelief()
         raw_input()
 
         #Update train state and kalman filter estimate
         train.update(u)
         #Give the kalman filter a measurement of the train every 100 iterations
-        if i % 10 == 0:
+        if i % 5 == 0:
             z = sensor.getMeasurement()
-            plotter.plotBelief(z)
-            raw_input()            
-            kalman_filter.update(z)
-            plotter.plotBelief(z)
+            plotter.plotMeasurement(z)
             raw_input()
+            kalman_filter.update(z)
         else:
             kalman_filter.predict(u)
-            z = None
+            plotter.clearMeasurement()
 
         # Control animation speed
 
