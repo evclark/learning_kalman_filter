@@ -19,13 +19,16 @@ def updateKinematics(x, u):
     return new_x
 Q = np.array([[0.01, 0   ],
               [0,    0.01]])
+# Q = np.zeros([2, 2])
 
 #Predict step constants
-# H = np.array([[5.6, 0  ],
-#               [0,   3.5]])
-H = np.identity(2)
+H = np.array([[5.6, 0  ],
+              [0,   3.5]])
+# H = np.identity(2)
 R = np.array([[0.5, 0   ],
               [0,   0.01]])
+# R = np.zeros([2, 2])
+
 
 #Create State class to keep track of state
 State = namedtuple("State", ["pos", "vel"])
@@ -52,8 +55,8 @@ class Sensor:
 
     def getMeasurement(self):
         #Get "measured" position and velocity (add gaussian noise)
-        measured_pos = np.random.normal(self.train.x.pos, R[0, 0])
-        measured_vel = np.random.normal(self.train.x.vel, R[1, 1])
+        measured_pos = np.random.normal(self.train.x.pos, np.sqrt(R[0, 0]))
+        measured_vel = np.random.normal(self.train.x.vel, np.sqrt(R[1, 1]))
 
         #Convert to "volts" using inverse H matrix
         measured_state = State(measured_pos, measured_vel)
@@ -73,19 +76,31 @@ class KalmanFilter:
         self.P = P
 
     def predict(self, u):
+        print "\nRunning predict"
+        print "init state: %s" % str(self.x)
+
         #Predict new state estimate based on world model
         self.x = updateKinematics(self.x, u)
 
         #Predict new covariance based on world model
         self.P = la.multi_dot([F, self.P, np.transpose(F)]) + Q
 
+        print "final state: %s" % str(self.x)
+
+
     def update(self, z):
+        print "\nRunning update"
+        print "init state: %s, meas: %s" % (str(self.x), z)
+
         #Update new state estimate based on sensor model
         new_x = self.x + np.dot(self.K_prime, (z - np.dot(H, self.x)))
         self.x = State(*new_x)
 
-        #Pre
+        #Update covariance
         self.P = self.P - la.multi_dot([self.K_prime, H, self.P])
+
+        print "final state: %s" % str(self.x)
+
 
     def getEstimate(self):
         return self.x, self.P
@@ -186,8 +201,6 @@ class BeliefPlotter:
         #Get position uncertainty
         cov_index = self.kalman_filter.getCovarianceIndex(var_name)
         sigma = np.sqrt(self.kalman_filter.P[cov_index, cov_index])
-
-        print "%s variance: %s" % (var_name, sigma)
 
         #Get plot Line objects for this state variable
         truth_plot = self.plots[var_name].truth
