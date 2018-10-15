@@ -21,8 +21,9 @@ Q = np.array([[0.01, 0   ],
               [0,    0.01]])
 
 #Predict step constants
-H = np.array([[5.6, 0  ],
-              [0,   3.5]])
+# H = np.array([[5.6, 0  ],
+#               [0,   3.5]])
+H = np.identity(2)
 R = np.array([[0.5, 0   ],
               [0,   0.01]])
 
@@ -86,7 +87,6 @@ class KalmanFilter:
         #Pre
         self.P = self.P - la.multi_dot([self.K_prime, H, self.P])
 
-
     def getEstimate(self):
         return self.x, self.P
 
@@ -136,8 +136,6 @@ class BeliefPlotter:
 
         #Redraw the plots with the new data
         self.fig.canvas.draw()
-
-
 
     def plotMeasurement(self, z):
         for var_name in ["pos", "vel"]:
@@ -236,8 +234,8 @@ def main():
             raw_input()
             kalman_filter.update(z)
         else:
-            kalman_filter.predict(u)
             plotter.clearMeasurement()
+            kalman_filter.predict(u)
 
         # Control animation speed
 
