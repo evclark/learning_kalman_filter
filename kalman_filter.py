@@ -14,7 +14,7 @@ import pdb
 dT = 1.0
 F = np.array([[1.0, dT ],
               [0.0, 1.0]])
-B = np.array(np.transpose([(dT ** 2) / 2.0, dT]))
+B = np.array(np.transpose([np.power(dT, 2) / 2.0, dT]))
 Q = np.array([[0.01, 0   ],
               [0,    0.01]])
 # Q = np.zeros([2, 2])
@@ -22,11 +22,11 @@ Q = np.array([[0.01, 0   ],
 #########
 #Predict step constants
 #########
-H = np.array([[5.6, 0  ],
-              [0,   3.5]])
-# H = np.identity(2)
+# H = np.array([[5.6, 0  ],
+#               [0,   3.5]])
+H = np.identity(2)
 R = np.array([[0.5, 0   ],
-              [0,   0.01]])
+              [0,   0.005]])
 # R = np.zeros([2, 2])
 
 #########
@@ -89,7 +89,7 @@ class KalmanFilter:
         print "final state: %s" % self.x
 
     def update(self, z):
-        print "\nRunning update"
+        print "Running update"
         print "init state: %s, meas: %s" % (self.x, z)
 
         #Update new state estimate based on sensor model
@@ -131,11 +131,11 @@ class BeliefPlotter:
     def _initAxisLimits(self):
         axis = self.axes[0]
         axis.set_xlim([-2, 12])
-        axis.set_ylim([0, 1])
+        # axis.set_ylim([0, 1])
 
         axis = self.axes[1]
         axis.set_xlim([-1, 1])
-        axis.set_ylim([0, 1])
+        # axis.set_ylim([0, 1])
 
     def clearPlots(self):
         for axis in self.axes:
@@ -184,7 +184,7 @@ class BeliefPlotter:
 
 
 def main():
-    init_truth_state = [0.1, .11]
+    init_truth_state = [0.0, .1]
     train = Train(init_truth_state)
 
     init_estimate = [0.0, .1]
@@ -198,11 +198,17 @@ def main():
     for i in range(1000):
         print "=============================="
 
+        ########
+        #Make the train move back and forth along the track
+        ########
         train_pos = train.x[STATE_INDEX["pos"]]
+        #Accelerate forwards
         if train_pos < 2.5:
             u = 0.01
+        #Coast
         elif train_pos >= 2.5 and train_pos <= 7.5:
             u = 0
+        #Accelerate backwards
         else:
             u = -0.01
 
@@ -215,10 +221,17 @@ def main():
         raw_input()
 
         if i % 5 == 0:
+            #Get sensor measurement
             z = sensor.getMeasurement()
+            #Plot measurement (in green), and where this should cause the
+            #kalman filter to update to (in red)
             plotter.plotMeasurement(z)
             raw_input()
+            #Update the kalman filter with the measurement
             kalman_filter.update(z)
+            #Plot again to watch the update happen
+            plotter.plotBelief()
+            raw_input()
 
         plotter.clearPlots()
 
