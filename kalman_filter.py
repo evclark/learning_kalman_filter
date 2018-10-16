@@ -66,19 +66,26 @@ class Sensor:
         self.train = train
 
     def getMeasurement(self):
-        measured_state = []
-        for i in range(len(STATE_VARS)):
-            truth_val = self.train.x[i]
-            noise = np.random.normal(0, np.sqrt(R[i, i]))
-            measured_val = truth_val + noise
-            measured_state.append(measured_val)
+        # measured_state = []
+        # for i in range(len(STATE_VARS)):
+        #     truth_val = self.train.x[i]
+        #     noise = np.random.normal(0, np.sqrt(R[i, i]))
+        #     measured_val = truth_val + noise
+        #     measured_state.append(measured_val)
+        #
+        # #Convert to "volts" or some other unit of measurement using inverse H
+        # #matrix to make H actually do something interesting
+        # measurement = np.dot(la.inv(H), measured_state)
+        #
+        # return measurement
 
-        #Convert to "volts" or some other unit of measurement using inverse H
-        #matrix to make H actually do something interesting
-        measurement = np.dot(la.inv(H), measured_state)
+        truth = self.train.x
+        truth_measurement = np.dot(H, truth)
+        noise = [np.random.normal(0, np.sqrt(R[i, i])) for
+                                                    i in range(len(STATE_VARS))]
+        z = truth_measurement + noise
 
-        return measurement
-
+        return z
 
 class KalmanFilter:
 
@@ -187,10 +194,12 @@ class BeliefPlotter:
         self.fig.canvas.draw()
 
     def plotMeasurement(self, z):
+        x = np.dot(la.inv(H), z)
+
         for i in range(len(STATE_VARS)):
             axis = self.axes[i]
 
-            meas_val = z[i]
+            meas_val = x[i]
             meas_sigma = np.sqrt(R[i, i])
             meas_y_data = mlab.normpdf(self.x_plot_range, meas_val, meas_sigma)
             axis.plot(self.x_plot_range, meas_y_data, "g-")
