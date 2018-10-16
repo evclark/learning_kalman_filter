@@ -13,6 +13,7 @@ import pdb
 Questions:
     - How to tune process, measurement noise
     - Kalman gain? Weights predict and update equally?
+    - Q, R dependent on timestep?
 '''
 
 #########
@@ -23,15 +24,15 @@ F = np.array([[1.0, dT ],
               [0.0, 1.0]])
 B = np.array(np.transpose([np.power(dT, 2) / 2.0, dT]))
 Q = np.array([[0.001, 0   ],
-              [0,    0.001]])
+              [0,     0.001]])
 # Q = np.zeros([2, 2])
 
 #########
 #Predict step constants
 #########
-# H = np.array([[5.6, 0  ],
-#               [0,   3.5]])
-H = np.identity(2)
+H = np.array([[5.6, 0  ],
+              [0,   3.5]])
+# H = np.identity(2)
 R = np.array([[0.005, 0   ],
               [0,   0.0005]])
 # R = np.zeros([2, 2])
@@ -68,7 +69,8 @@ class Sensor:
         measured_state = []
         for i in range(len(STATE_VARS)):
             truth_val = self.train.x[i]
-            measured_val = np.random.normal(truth_val, np.sqrt(R[i, i]))
+            noise = np.random.normal(0, np.sqrt(R[i, i]))
+            measured_val = truth_val + noise
             measured_state.append(measured_val)
 
         #Convert to "volts" or some other unit of measurement using inverse H
@@ -81,10 +83,6 @@ class Sensor:
 class KalmanFilter:
 
     def __init__(self, x, P):
-        a = np.dot(P, np.transpose(H))
-        b = la.inv(la.multi_dot([H, P, np.transpose(H)]) + R)
-        self.K_prime = np.dot(a, b)
-
         self.x = np.array(x)
         self.P = np.array(P)
 
@@ -110,11 +108,16 @@ class KalmanFilter:
         print "Running update"
         print "init state: %s, meas: %s" % (self.x, z)
 
+        #Calculate Kalman gain
+        a = np.dot(self.P, np.transpose(H))
+        b = la.inv(la.multi_dot([H, self.P, np.transpose(H)]) + R)
+        K = np.dot(a, b)
+
         #Update new state estimate based on sensor model
-        self.x = self.x + np.dot(self.K_prime, (z - np.dot(H, self.x)))
+        self.x = self.x + np.dot(K, (z - np.dot(H, self.x)))
 
         #Update covariance
-        self.P = self.P - la.multi_dot([self.K_prime, H, self.P])
+        self.P = self.P - la.multi_dot([K, H, self.P])
 
         print "final state: %s" % self.x
 
